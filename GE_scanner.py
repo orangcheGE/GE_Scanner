@@ -68,7 +68,7 @@ def analyze_german_stock(ticker_symbol):
             status, trend = "관망", "🌅 바닥 다지기"
 
         accel = "📈 가속" if macd_curr > macd_prev else "⚠️ 감속"
-        chart_url = f"https://finance.yahoo.com/quote/{ticker_symbol}"
+        chart_url = f"https://finance.yahoo.com/chart/{ticker_symbol}"
         
         return [ticker_symbol, round(change, 2), round(price, 2), round(ma20, 2), f"{round(disparity, 2)}%", status, f"{trend} | {accel}", chart_url]
     except Exception as e:
