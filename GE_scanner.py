@@ -28,15 +28,20 @@ def get_dax_tickers():
 # --- 3. 상세 분석 로직 (에러 캡처 강화) ---
 def analyze_stock(ticker):
     try:
-        # 데이터를 가져올 때 에러가 나면 구체적인 사유를 확인하기 위해 분리
-        data = yf.download(ticker, period="60d", interval="1d", progress=False, show_errors=True)
+        # 'show_errors' 인자를 제거하여 버전 호환성 문제를 해결했습니다.
+        data = yf.download(ticker, period="60d", interval="1d", progress=False)
         
         if data.empty:
             return None, f"{ticker}: 데이터가 비어있음 (상장폐지 또는 티커 오류)"
         if len(data) < 30:
             return None, f"{ticker}: 데이터 부족 (신규 상장주 등)"
         
-        close = data['Close']
+        # 최신 yfinance 버전은 데이터가 MultiIndex로 올 수 있어 처리 추가
+        if isinstance(data.columns, pd.MultiIndex):
+            close = data['Close'][ticker]
+        else:
+            close = data['Close']
+            
         ma20 = close.rolling(window=20).mean()
         ma5 = close.rolling(window=5).mean()
         
@@ -44,22 +49,26 @@ def analyze_stock(ticker):
         last_ma20 = float(ma20.iloc[-1])
         last_ma5 = float(ma5.iloc[-1])
         prev_price = float(close.iloc[-2])
+        prev_ma20 = float(ma20.iloc[-2])
         
         change = ((last_price - prev_price) / prev_price) * 100
         disparity = ((last_price / last_ma20) - 1) * 100
         
         status, trend = "관망", "🌊 방향 탐색"
-        if disparity >= 12: status, trend = "과열 주의", "🔥 이격 과다"
+        if disparity >= 12: 
+            status, trend = "과열 주의", "🔥 이격 과다"
         elif last_price > last_ma20:
-            if last_price < last_ma5: status, trend = "추세 이탈", "⚠️ 5일선 하회"
-            else: status, trend = "홀드", "📈 상승 유지"
-        elif (float(close.iloc[-2]) < float(ma20.iloc[-2])) and (last_price > last_ma20):
+            if last_price < last_ma5: 
+                status, trend = "추세 이탈", "⚠️ 5일선 하회"
+            else: 
+                status, trend = "홀드", "📈 상승 유지"
+        elif (prev_price < prev_ma20) and (last_price > last_ma20):
             status, trend = "매수 관심", "🔥 20일선 돌파"
 
         return [ticker, round(change, 2), round(last_price, 2), round(last_ma20, 2), f"{round(disparity, 2)}%", status, trend], None
     except Exception as e:
         return None, f"{ticker}: 시스템 에러 ({str(e)})"
-
+        
 # --- 4. UI 및 실행 ---
 st.sidebar.title("🌍 글로벌 마켓 스캐너")
 market = st.sidebar.radio("시장 선택", ["독일 (DAX)", "미국 (S&P 500)"])
